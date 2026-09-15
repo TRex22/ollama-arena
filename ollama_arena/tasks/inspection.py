@@ -300,3 +300,11 @@ def load_config(path: str, schema: dict) -> dict:
         "expected_issues": [],
     },
 ]
+
+for _t in INSPECTION_TASKS:
+    _t["instruction"] = (
+        "Review the following Python code for bugs, security vulnerabilities, "
+        "and other issues. Point out anything you find; if the code is clean, "
+        "say so explicitly.\n\n```python" + _t["code"] + "```"
+    )
+del _t
