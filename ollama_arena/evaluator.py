@@ -166,7 +166,7 @@ def eval_inspection(task: dict, response: str) -> float:
         return 0.3
     if not expected:
         return 0.5
-    detected = sum(1 for issue in expected if any(w in resp for w in issue.split()))
+    detected = sum(1 for issue in expected if any(w in resp for w in issue.split("_")))
     return round(detected / len(expected), 3)
 
 
