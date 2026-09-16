@@ -73,7 +73,10 @@ def main():
 
     pt = sub.add_parser("tournament", help="Round-robin tournament")
     pt.add_argument("--models", required=True)
-    pt.add_argument("--category", default="coding")
+    pt.add_argument("--category", default="coding",
+                    choices=["coding", "reasoning", "security", "planning",
+                             "inspection", "math", "knowledge", "creative",
+                             "json_format", "tool_use", "vision", "all"])
     pt.add_argument("-n", type=int, default=5)
     add_common(pt)
     pt.set_defaults(func=cmd_tournament)
