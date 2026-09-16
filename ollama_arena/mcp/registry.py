@@ -50,13 +50,13 @@ def _mock_search_docs(args: dict) -> str:
 def _collect_builtin_defs(include_mock: bool, server_configs: dict | None) -> list[ToolDef]:
     raw: list[tuple[str, Callable, dict, str]] = []
     raw.extend(web.tool_defs(include_mock=include_mock))
-    raw.extend(workspace.tool_defs())
+    raw.extend(workspace.tool_defs(include_mock=include_mock))
     raw.extend(git.tool_defs(include_mock=include_mock))
-    raw.extend(dev.tool_defs())
-    raw.extend(code.tool_defs())
+    raw.extend(dev.tool_defs(include_mock=include_mock))
+    raw.extend(code.tool_defs(include_mock=include_mock))
     raw.extend(network.tool_defs())
     raw.extend(data.tool_defs())
-    raw.extend(computer.tool_defs())
+    raw.extend(computer.tool_defs(include_mock=include_mock))
 
     # Add RAG tools if available
     if _rag_available:

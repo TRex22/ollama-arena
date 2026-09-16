@@ -29,6 +29,16 @@ def codebase_search(args: dict) -> str:
         return f"Search error: {exc}"
 
 
+def mock_codebase_search(args: dict) -> str:
+    # Pure fake - no subprocess/grep, no real filesystem read. Benchmark
+    # tasks only need to confirm the model called codebase_search with
+    # the right pattern, not that a real match was found.
+    pattern = args.get("pattern", "")
+    if not pattern:
+        return "Error: No pattern provided."
+    return f"Codebase Search Results for '{pattern}':\nmock_match.py:1: mock line matching '{pattern}'"
+
+
 def ast_parse(args: dict) -> str:
     try:
         file_path = _safe_path(args.get("file_path", "").lstrip("/"))
@@ -107,25 +117,29 @@ def ui_tars_action(args: dict) -> str:
     )
 
 
-def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
+CODEBASE_SEARCH_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "codebase_search",
+        "description": "Regex/grep search across the arena workspace.",
+        "parameters": {
+            "type": "object",
+            "properties": {"pattern": {"type": "string"}},
+            "required": ["pattern"],
+        },
+    },
+}
+
+
+def tool_defs(include_mock: bool = False) -> list[tuple[str, Callable[[dict], str], dict, str]]:
+    if include_mock:
+        # Mock mode: no real subprocess/grep - safe.
+        codebase_search_def = ("codebase_search", mock_codebase_search, CODEBASE_SEARCH_SCHEMA, "safe")
+    else:
+        # Real mode: genuinely shells out to grep, correctly gated.
+        codebase_search_def = ("codebase_search", codebase_search, CODEBASE_SEARCH_SCHEMA, "confirm")
     return [
-        (
-            "codebase_search",
-            codebase_search,
-            {
-                "type": "function",
-                "function": {
-                    "name": "codebase_search",
-                    "description": "Regex/grep search across the arena workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"pattern": {"type": "string"}},
-                        "required": ["pattern"],
-                    },
-                },
-            },
-            "confirm",
-        ),
+        codebase_search_def,
         (
             "ast_parse",
             ast_parse,
@@ -195,6 +209,11 @@ def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
                     },
                 },
             },
-            "confirm",
+            # ui_tars_action's own handler is already a pure string
+            # formatter, unconditionally, regardless of mock mode - its
+            # own docstring says "mocked for text-only model context".
+            # "confirm" was never appropriate for it - it can't do
+            # anything, real or mock.
+            "safe",
         ),
     ]

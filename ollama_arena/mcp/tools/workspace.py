@@ -60,8 +60,55 @@ def write_file(args: dict) -> str:
         return f"Error: {exc}"
 
 
-def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
-    return [
+def mock_read_file(args: dict) -> str:
+    # Pure fake - no real filesystem read, even within the sandboxed
+    # workspace. Benchmark tasks only need to confirm the model called
+    # read_file with the right path.
+    path = args.get("path", "")
+    if not path:
+        return "Error: File not found."
+    return f"(mock contents of {path})"
+
+
+def mock_write_file(args: dict) -> str:
+    # Pure fake - no real filesystem write, even within the sandboxed
+    # workspace.
+    path = args.get("path", "")
+    content = args.get("content", "")
+    return f"Wrote {len(content)} bytes to {path} (mock)"
+
+
+READ_FILE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": "Read a file from the arena workspace.",
+        "parameters": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    },
+}
+WRITE_FILE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "Write content to a file in the arena workspace.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["path", "content"],
+        },
+    },
+}
+
+
+def tool_defs(include_mock: bool = False) -> list[tuple[str, Callable[[dict], str], dict, str]]:
+    defs: list[tuple[str, Callable[[dict], str], dict, str]] = [
         (
             "ls",
             ls,
@@ -78,41 +125,15 @@ def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
             },
             "safe",
         ),
-        (
-            "read_file",
-            read_file,
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_file",
-                    "description": "Read a file from the arena workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"path": {"type": "string"}},
-                        "required": ["path"],
-                    },
-                },
-            },
-            "confirm",
-        ),
-        (
-            "write_file",
-            write_file,
-            {
-                "type": "function",
-                "function": {
-                    "name": "write_file",
-                    "description": "Write content to a file in the arena workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string"},
-                            "content": {"type": "string"},
-                        },
-                        "required": ["path", "content"],
-                    },
-                },
-            },
-            "confirm",
-        ),
     ]
+    if include_mock:
+        # Mock mode: neither touches the real filesystem, even within the
+        # sandbox - safe.
+        defs.append(("read_file", mock_read_file, READ_FILE_SCHEMA, "safe"))
+        defs.append(("write_file", mock_write_file, WRITE_FILE_SCHEMA, "safe"))
+    else:
+        # Real mode: genuinely reads/writes real files (sandboxed to
+        # WORKSPACE_DIR via _safe_path), correctly gated.
+        defs.append(("read_file", read_file, READ_FILE_SCHEMA, "confirm"))
+        defs.append(("write_file", write_file, WRITE_FILE_SCHEMA, "confirm"))
+    return defs
