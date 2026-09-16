@@ -49,9 +49,9 @@ def _mock_search_docs(args: dict) -> str:
 
 def _collect_builtin_defs(include_mock: bool, server_configs: dict | None) -> list[ToolDef]:
     raw: list[tuple[str, Callable, dict, str]] = []
-    raw.extend(web.tool_defs())
+    raw.extend(web.tool_defs(include_mock=include_mock))
     raw.extend(workspace.tool_defs())
-    raw.extend(git.tool_defs())
+    raw.extend(git.tool_defs(include_mock=include_mock))
     raw.extend(dev.tool_defs())
     raw.extend(code.tool_defs())
     raw.extend(network.tool_defs())
@@ -88,7 +88,13 @@ def _collect_builtin_defs(include_mock: bool, server_configs: dict | None) -> li
                         },
                     },
                 },
-                danger_tier="confirm",
+                # _mock_sqlite_query (above) is a pure function - checks the
+                # query string for "users" and returns one of two canned
+                # JSON payloads, no real database or file touched. "confirm"
+                # made every benchmark task expecting this mock tool hang on
+                # an interactive y/N prompt for something with zero real
+                # effect. "safe" is correct for a mock with no side effects.
+                danger_tier="safe",
                 mock_available=True,
             )
         )

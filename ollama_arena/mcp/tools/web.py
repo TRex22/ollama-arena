@@ -90,9 +90,33 @@ def wikipedia_search(args: dict) -> str:
         return f"Error: {exc}"
 
 
-def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
+def mock_web_fetch(args: dict) -> str:
+    # Pure fake - no requests.get, no real network access. Benchmark tasks
+    # only need to confirm the model called web_fetch with the right url,
+    # not that a real page was actually downloaded.
+    url = args.get("url", "")
+    if not url:
+        return "Error: No url provided."
+    return f"Content of {url}:\n\nMock fetched content for {url}."
+
+
+WEB_FETCH_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "web_fetch",
+        "description": "Download a URL and return stripped text content.",
+        "parameters": {
+            "type": "object",
+            "properties": {"url": {"type": "string"}},
+            "required": ["url"],
+        },
+    },
+}
+
+
+def tool_defs(include_mock: bool = False) -> list[tuple[str, Callable[[dict], str], dict, str]]:
     """Return (name, handler, schema, danger_tier) tuples."""
-    return [
+    defs: list[tuple[str, Callable[[dict], str], dict, str]] = [
         (
             "google_web_search",
             ddg_search,
@@ -128,23 +152,6 @@ def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
             "safe",
         ),
         (
-            "web_fetch",
-            web_fetch,
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_fetch",
-                    "description": "Download a URL and return stripped text content.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"url": {"type": "string"}},
-                        "required": ["url"],
-                    },
-                },
-            },
-            "confirm",
-        ),
-        (
             "wikipedia_search",
             wikipedia_search,
             {
@@ -162,3 +169,11 @@ def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
             "safe",
         ),
     ]
+    if include_mock:
+        # Mock mode: no real requests.get - safe.
+        defs.append(("web_fetch", mock_web_fetch, WEB_FETCH_SCHEMA, "safe"))
+    else:
+        # Real mode: genuinely fetches an arbitrary attacker-influenceable
+        # URL, correctly gated.
+        defs.append(("web_fetch", web_fetch, WEB_FETCH_SCHEMA, "confirm"))
+    return defs

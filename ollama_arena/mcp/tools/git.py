@@ -37,8 +37,32 @@ def git_commit(args: dict) -> str:
     return _git(["commit", "-m", message])
 
 
-def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
-    return [
+def mock_git_commit(args: dict) -> str:
+    # Pure fake - no subprocess, no real git repo touched. Benchmark tasks
+    # only need to confirm the model called git_commit with the right
+    # message, not that a real commit landed in some workspace dir.
+    message = args.get("message", "")
+    if not message:
+        return "Error: commit message required."
+    return f"[mock abc1234] {message}\n 1 file changed, 1 insertion(+)"
+
+
+GIT_COMMIT_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "git_commit",
+        "description": "Stage all changes and commit in the arena workspace.",
+        "parameters": {
+            "type": "object",
+            "properties": {"message": {"type": "string"}},
+            "required": ["message"],
+        },
+    },
+}
+
+
+def tool_defs(include_mock: bool = False) -> list[tuple[str, Callable[[dict], str], dict, str]]:
+    defs: list[tuple[str, Callable[[dict], str], dict, str]] = [
         (
             "git_status",
             git_status,
@@ -52,21 +76,11 @@ def tool_defs() -> list[tuple[str, Callable[[dict], str], dict, str]]:
             },
             "safe",
         ),
-        (
-            "git_commit",
-            git_commit,
-            {
-                "type": "function",
-                "function": {
-                    "name": "git_commit",
-                    "description": "Stage all changes and commit in the arena workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"message": {"type": "string"}},
-                        "required": ["message"],
-                    },
-                },
-            },
-            "confirm",
-        ),
     ]
+    if include_mock:
+        # Mock mode: no real subprocess/repo mutation - safe.
+        defs.append(("git_commit", mock_git_commit, GIT_COMMIT_SCHEMA, "safe"))
+    else:
+        # Real mode: genuinely runs `git add -A && git commit`, correctly gated.
+        defs.append(("git_commit", git_commit, GIT_COMMIT_SCHEMA, "confirm"))
+    return defs
